@@ -1,8 +1,12 @@
-import { ChatOpenAI } from "@langchain/openai";
+import { ChatOpenAI, OpenAIEmbeddings } from '@langchain/openai'
 
-export const model = {
-  async invoke(prompt: string): Promise<string> {
-    // Placeholder: just echo the prompt for now
-    return `LLM would organize this as markdown:\n\n${prompt}`;
-  }
-}; 
+
+export const model = new ChatOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  // model: ''
+})
+
+export const thinkingModel = new ChatOpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+  model: 'gpt-4o-mini',
+})

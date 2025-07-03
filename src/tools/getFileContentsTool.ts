@@ -5,6 +5,7 @@ import path from "path";
 import { extractTypeScriptBlocks } from "./extractors/typescript.ts";
 import { extractJavaBlocks } from "./extractors/java.ts";
 import { extractJavaScriptBlocks } from "./extractors/javascript.ts";
+import { extractHtmlJspBlocks } from "./extractors/html.ts";
 
 export const getFileContentsTool = tool(
   async ({ baseDirectory, files, full }: { baseDirectory: string; files: string[]; full?: boolean }) => {
@@ -27,6 +28,11 @@ export const getFileContentsTool = tool(
             case ".js":
               content = extractJavaScriptBlocks(content);
               break;
+            case ".html":
+            case ".htm":
+            case ".jsp":
+              content = extractHtmlJspBlocks(content);
+              break;
             default:
               // No simplification
               break;
@@ -41,11 +47,11 @@ export const getFileContentsTool = tool(
   },
   {
     name: "get_file_contents",
-    description: "Given a base directory and a list of relative file paths, return a single string with each file's name and contents, separated by breaks. If 'full' is true, return the full file content. Otherwise, return a summary (for .ts, .java, .js files, only key structure and exports).",
+    description: "Given a base directory and a list of relative file paths, return a single string with each file's name and contents, separated by breaks. If 'full' is true, return the full file content. Otherwise, return a summary (for .ts, .java, .js, .html, .jsp files, only key structure and exports).",
     schema: z.object({
       baseDirectory: z.string().describe("Base directory for the relative file paths."),
       files: z.array(z.string()).describe("Array of relative file paths to read."),
-      full: z.boolean().nullish().describe("If true, return the full file content. If false or omitted, return the summary/extracted structure."),
+      full: z.boolean().optional().describe("If true, return the full file content. If false or omitted, return the summary/extracted structure."),
     }),
   }
 ); 
