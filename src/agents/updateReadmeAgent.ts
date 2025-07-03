@@ -6,24 +6,24 @@ import { model } from "../model.ts";
 // If you see a type error for 'fs/promises', install @types/node:
 // npm install --save-dev @types/node
 
-const README_PATH = "README.md";
+const REVIEW_PATH = "review.md";
 
 // Create a model runnable that always outputs a string
 const modelStringRunnable = model.pipe(new StringOutputParser());
 
 export const updateReadmeAgentRunnable = RunnableLambda.from(
   async ({ newContent, reason }: { newContent: string; reason: string }) => {
-    let readme = "";
+    let review = "";
     try {
-      readme = await fs.readFile(README_PATH, "utf8");
+      review = await fs.readFile(REVIEW_PATH, "utf8");
     } catch {
       // If file doesn't exist, start fresh
-      readme = "";
+      review = "";
     }
 
     // Remove any existing history section
     const historyRegex = /## History[\s\S]*$/;
-    let mainContent = readme.replace(historyRegex, "").trim();
+    let mainContent = review.replace(historyRegex, "").trim();
 
     // Use the model runnable to organize the new content as markdown
     mainContent = (await modelStringRunnable.invoke(newContent)).trim();
@@ -31,7 +31,7 @@ export const updateReadmeAgentRunnable = RunnableLambda.from(
     // Prepare history
     const now = new Date().toISOString();
     let historySection = "";
-    const prevHistoryMatch = readme.match(historyRegex);
+    const prevHistoryMatch = review.match(historyRegex);
     if (prevHistoryMatch) {
       historySection = prevHistoryMatch[0].trim();
     } else {
@@ -42,7 +42,7 @@ export const updateReadmeAgentRunnable = RunnableLambda.from(
 
     // Write back
     const updated = `${mainContent}\n\n${historySection}\n`;
-    await fs.writeFile(README_PATH, updated, "utf8");
+    await fs.writeFile(REVIEW_PATH, updated, "utf8");
     return updated;
   }
 ); 

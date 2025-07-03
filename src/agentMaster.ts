@@ -48,10 +48,43 @@ class MasterAgent {
       // Build context chain
       const chain = Array.from(this.contextMap.entries()).map(([f, v]) => ({ file: f, summary: v.summary, links: v.links }));
       const context: ResearchContext = { chain, parentFile };
-      // Research and link
-      const research = await researchAgent(this.baseDirectory, file, this.question, context);
-      const links = await linkFinderAgent(this.baseDirectory, file);
-      this.contextMap.set(file, { summary: research.answer, links });
+      let research: ResearchResult | null = null;
+      let links: string[] = [];
+      try {
+        research = await researchAgent(this.baseDirectory, file, this.question, context);
+        if (research.error) {
+          // Log error to review.md
+          await updateReadmeAgentRunnable.invoke({
+            newContent: `## Problems Encountered\n- Error in file ${file}: ${research.error}`,
+            reason: `Error encountered in ${file}`,
+          });
+          // Ask the LLM for a suggestion on how to proceed
+          const suggestion = await model.invoke(
+            `The agent encountered this error: "${research.error}" while analyzing ${file}. What should it try next?`
+          );
+          await updateReadmeAgentRunnable.invoke({
+            newContent: `## Agent Recovery Suggestion\n- For file ${file}: ${suggestion}`,
+            reason: `Agent recovery suggestion for ${file}`,
+          });
+          continue;
+        }
+        try {
+          links = await linkFinderAgent(this.baseDirectory, file);
+        } catch (err) {
+          await updateReadmeAgentRunnable.invoke({
+            newContent: `## Problems Encountered\n- Error finding links in file ${file}: ${err}`,
+            reason: `Link finding error in ${file}`,
+          });
+          links = [];
+        }
+      } catch (err) {
+        await updateReadmeAgentRunnable.invoke({
+          newContent: `## Problems Encountered\n- Unexpected error in file ${file}: ${err}`,
+          reason: `Unexpected error in ${file}`,
+        });
+        continue;
+      }
+      this.contextMap.set(file, { summary: research!.answer, links });
       this.explored.add(file);
       // Add unexplored links to queue
       for (const link of links) {
@@ -60,20 +93,20 @@ class MasterAgent {
         }
       }
       // Add neededFiles from researchAgent to queue
-      for (const needed of research.neededFiles) {
+      for (const needed of research!.neededFiles) {
         if (!this.explored.has(needed) && !toExplore.some(e => e.file === needed)) {
           toExplore.push({ file: needed, parentFile: file });
         }
       }
-      // After each iteration, update README
+      // After each iteration, update REVIEW
       const markdown = await this.buildMarkdown();
       await updateReadmeAgentRunnable.invoke({ newContent: markdown, reason: `Iteration ${++iteration}: added/updated ${file}` });
-      console.log(`README updated after processing ${file}`);
+      console.log(`REVIEW updated after processing ${file}`);
     }
     // Final update after all files explored
     const finalMarkdown = await this.buildMarkdown();
     await updateReadmeAgentRunnable.invoke({ newContent: finalMarkdown, reason: "Final update: all files explored" });
-    console.log("All files explored. Final context written to README.md");
+    console.log("All files explored. Final context written to review.md");
   }
 
   async buildMarkdown() {
@@ -97,7 +130,7 @@ class MasterAgent {
 async function main() {
   const baseDirectory = path.resolve("./src");
   const entryFile = "agentMaster.ts";
-  const question = "How does this loop through to research?";
+  const question = "what is the loop this code does to research code? explain thuroughly and in detail";
   const agent = new MasterAgent(baseDirectory, entryFile, question);
   await agent.run();
 }

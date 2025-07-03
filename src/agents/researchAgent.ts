@@ -14,25 +14,7 @@ export interface ResearchContext {
   parentFile?: string;
 }
 
-export async function researchAgent(
-  baseDirectory: string,
-  file: string,
-  question: string,
-  context?: ResearchContext
-): Promise<ResearchResult> {
-  const fileContent = await getFileContentsTool.invoke({
-    baseDirectory,
-    files: [file],
-    full: false,
-  });
-  let contextSummary = `You are reviewing the file: ${file}.`;
-  if (context) {
-    if (context.parentFile) {
-      contextSummary += ` This file is being researched because it was imported, referenced, or linked from the file: ${context.parentFile} as part of the code exploration. Please consider why this connection might be important for the current question.`;
-    } else {
-      contextSummary += ` This is the entry point file for the current analysis.`;
-    }
-  }
+async function getLLMAnswer(fileContent: string, file: string, question: string, contextSummary: string) {
   const prompt = `
 ${contextSummary}
 You are analyzing the file "${file}" for the question: "${question}"
@@ -51,25 +33,57 @@ Respond in the following JSON format:
   "error": null
 }`;
   const structuredModel = model.withStructuredOutput(ResearchResultSchema);
-  try {
-    const result = await structuredModel.invoke(prompt);
-    return {
-      answer: result.answer,
-      neededFiles: result.neededFiles,
-      error: null,
-    };
-  } catch (err: any) {
-    console.error("LLM or parsing error in researchAgent:", err);
-    let errorMsg: string | null = null;
-    if (err && typeof err.message === 'string') {
-      errorMsg = err.message;
-    } else if (err) {
-      errorMsg = String(err);
+  return await structuredModel.invoke(prompt);
+}
+
+export async function researchAgent(
+  baseDirectory: string,
+  file: string,
+  question: string,
+  context?: ResearchContext
+): Promise<ResearchResult> {
+  // Compose context summary
+  let contextSummary = `You are reviewing the file: ${file}.`;
+  if (context) {
+    if (context.parentFile) {
+      contextSummary += ` This file is being researched because it was imported, referenced, or linked from the file: ${context.parentFile} as part of the code exploration. Please consider why this connection might be important for the current question.`;
+    } else {
+      contextSummary += ` This is the entry point file for the current analysis.`;
     }
-    return {
-      answer: "Error: Unable to get structured output from LLM.",
-      neededFiles: [],
-      error: (errorMsg ? errorMsg : null),
-    };
   }
+
+  // First, try with summary
+  let fileContent = await getFileContentsTool.invoke({
+    baseDirectory,
+    files: [file],
+    full: false,
+  });
+  let usedFull = false;
+  let result = await getLLMAnswer(fileContent, file, question, contextSummary);
+
+  // If the answer is 'Not relevant', 'Insufficient context', or fileContent is very short, try with full file
+  const needsFull =
+    (typeof result.answer === "string" &&
+      (/not relevant|insufficient context|not enough information|cannot answer|need more context/i.test(result.answer) || fileContent.length < 100));
+
+  if (needsFull && !usedFull) {
+    fileContent = await getFileContentsTool.invoke({
+      baseDirectory,
+      files: [file],
+      full: true,
+    });
+    usedFull = true;
+    result = await getLLMAnswer(fileContent, file, question, contextSummary);
+    // Indicate in the answer that the full file was used
+    result.answer = `[Full file used for context]\n` + result.answer;
+  }
+
+  // Ensure error is always string|null
+  const safeResult: ResearchResult = {
+    answer: result.answer,
+    neededFiles: result.neededFiles,
+    error: typeof result.error === "undefined" ? null : result.error,
+  };
+
+  return safeResult;
 } 
