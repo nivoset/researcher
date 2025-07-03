@@ -4,20 +4,30 @@ import { getFileContentsTool } from "./tools/getFileContentsTool.ts";
 // import { model } from "./model.ts";
 
 async function main(): Promise<void> {
-  // Example usage of tools
-  const files = await listFilesTool.invoke({
+  // List all files in the sample folder
+  const filesResult = await listFilesTool.invoke({
     directory: "./src/tools/sample",
-    filter: ".js",
+    filter: null,
     ignore: null,
   });
-  console.log("Files:\n", files);
+  const files = filesResult
+    .split('\n')
+    .map(f => f.trim())
+    .filter(Boolean);
+  console.log("Files found:\n", files);
 
+  if (files.length === 0) {
+    console.log("No files found in sample folder.");
+    return;
+  }
+
+  // Get contents for each file
   const contents = await getFileContentsTool.invoke({
     baseDirectory: "./src/tools/sample",
-    files: ["Sample.js"],
+    files,
     full: false,
   });
-  console.log("Contents:\n", contents);
+  console.log("\nContents:\n", contents);
 }
 
 main(); 
