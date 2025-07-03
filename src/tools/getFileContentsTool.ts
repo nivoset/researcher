@@ -45,7 +45,7 @@ export const getFileContentsTool = tool(
     schema: z.object({
       baseDirectory: z.string().describe("Base directory for the relative file paths."),
       files: z.array(z.string()).describe("Array of relative file paths to read."),
-      full: z.boolean().optional().describe("If true, return the full file content. If false or omitted, return the summary/extracted structure."),
+      full: z.boolean().nullish().describe("If true, return the full file content. If false or omitted, return the summary/extracted structure."),
     }),
   }
 ); 

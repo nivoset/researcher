@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node --experimental-strip-types ./src/index.ts",
+    "agent": "node --experimental-strip-types ./src/agentDemo.ts"
   },
   "keywords": [],
   "author": "",
@@ -13,5 +15,8 @@
     "@langchain/openai": "^0.5.16",
     "dotenv": "^17.0.1",
     "langchain": "^0.3.29"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.10"
   }
 }
