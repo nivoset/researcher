@@ -11,6 +11,12 @@ const REVIEW_PATH = "review.md";
 // Create a model runnable that always outputs a string
 const modelStringRunnable = model.pipe(new StringOutputParser());
 
+// Cleanup agent: deduplicate markdown using the LLM
+async function cleanupMarkdownAgent(markdown: string): Promise<string> {
+  const prompt = `You are a markdown cleanup agent. Remove duplicate or near-duplicate sections, summaries, or lists from the following markdown. Keep only the most complete or recent version of each unique piece of information. Output clean, non-redundant markdown.\n\n---\n${markdown}\n---`;
+  return (await modelStringRunnable.invoke(prompt)).trim();
+}
+
 export const updateReadmeAgentRunnable = RunnableLambda.from(
   async ({ newContent, reason }: { newContent: string; reason: string }) => {
     let review = "";
@@ -35,6 +41,9 @@ export const updateReadmeAgentRunnable = RunnableLambda.from(
     } else {
       mainContent = formattedNewContent;
     }
+
+    // --- CLEANUP STEP: deduplicate before writing ---
+    mainContent = await cleanupMarkdownAgent(mainContent);
 
     // Prepare history
     const now = new Date().toISOString();

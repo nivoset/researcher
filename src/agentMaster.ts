@@ -30,7 +30,7 @@ class MasterAgent {
   contextMap: Map<string, { summary: string; links: string[] }> = new Map();
   baseDirectory: string;
   entryFile: string;
-  explored: Set<string> = new Set();
+  exploredAspects: Map<string, Set<string>> = new Map(); // file -> set of aspects analyzed
   question: string;
 
   constructor(baseDirectory: string, entryFile: string, question: string) {
@@ -40,11 +40,12 @@ class MasterAgent {
   }
 
   async run() {
-    let toExplore: Array<{ file: string; parentFile?: string }> = [{ file: this.entryFile }];
+    let toExplore: Array<{ file: string; parentFile?: string; aspect?: string }> = [{ file: this.entryFile, aspect: 'summary' }];
     let iteration = 0;
     while (toExplore.length > 0) {
-      const { file, parentFile } = toExplore.shift()!;
-      if (this.explored.has(file)) continue;
+      const { file, parentFile, aspect = 'summary' } = toExplore.shift()!;
+      // Check if this aspect of the file has already been analyzed
+      if (this.exploredAspects.has(file) && this.exploredAspects.get(file)!.has(aspect)) continue;
       // Build context chain
       const chain = Array.from(this.contextMap.entries()).map(([f, v]) => ({ file: f, summary: v.summary, links: v.links }));
       const context: ResearchContext = { chain, parentFile };
@@ -53,12 +54,10 @@ class MasterAgent {
       try {
         research = await researchAgent(this.baseDirectory, file, this.question, context);
         if (research.error) {
-          // Log error to review.md
           await updateReadmeAgentRunnable.invoke({
             newContent: `## Problems Encountered\n- Error in file ${file}: ${research.error}`,
             reason: `Error encountered in ${file}`,
           });
-          // Ask the LLM for a suggestion on how to proceed
           const suggestion = await model.invoke(
             `The agent encountered this error: "${research.error}" while analyzing ${file}. What should it try next?`
           );
@@ -66,6 +65,9 @@ class MasterAgent {
             newContent: `## Agent Recovery Suggestion\n- For file ${file}: ${suggestion}`,
             reason: `Agent recovery suggestion for ${file}`,
           });
+          // Mark this aspect as analyzed to avoid infinite loop on error
+          if (!this.exploredAspects.has(file)) this.exploredAspects.set(file, new Set());
+          this.exploredAspects.get(file)!.add(aspect);
           continue;
         }
         try {
@@ -84,21 +86,30 @@ class MasterAgent {
           newContent: `## Problems Encountered\n- Unexpected error in file ${file}: ${err}`,
           reason: `Unexpected error in ${file}`,
         });
+        // Mark this aspect as analyzed to avoid infinite loop on error
+        if (!this.exploredAspects.has(file)) this.exploredAspects.set(file, new Set());
+        this.exploredAspects.get(file)!.add(aspect);
         continue;
       }
       this.contextMap.set(file, { summary: research!.answer, links });
-      this.explored.add(file);
+      // Mark this aspect as analyzed
+      if (!this.exploredAspects.has(file)) this.exploredAspects.set(file, new Set());
+      this.exploredAspects.get(file)!.add(aspect);
       // Add unexplored links to queue
       for (const link of links) {
-        if (!this.explored.has(link) && !toExplore.some(e => e.file === link)) {
-          toExplore.push({ file: link, parentFile: file });
+        if (!this.exploredAspects.has(link) || !this.exploredAspects.get(link)!.has('summary')) {
+          toExplore.push({ file: link, parentFile: file, aspect: 'summary' });
         }
       }
       // Add neededFiles from researchAgent to queue
       for (const needed of research!.neededFiles) {
-        if (!this.explored.has(needed) && !toExplore.some(e => e.file === needed)) {
-          toExplore.push({ file: needed, parentFile: file });
+        if (!this.exploredAspects.has(needed) || !this.exploredAspects.get(needed)!.has('summary')) {
+          toExplore.push({ file: needed, parentFile: file, aspect: 'summary' });
         }
+      }
+      // If research used full file, mark 'full' as analyzed
+      if (research!.answer && research!.answer.startsWith('[Full file used for context]')) {
+        this.exploredAspects.get(file)!.add('full');
       }
       // After each iteration, update REVIEW
       const markdown = await this.buildMarkdown();
