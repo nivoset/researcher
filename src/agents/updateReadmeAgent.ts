@@ -21,19 +21,26 @@ export const updateReadmeAgentRunnable = RunnableLambda.from(
       review = "";
     }
 
-    // Remove any existing history section
+    // Remove any existing history section, but keep all other content
     const historyRegex = /## History[\s\S]*$/;
+    const historyMatch = review.match(historyRegex);
     let mainContent = review.replace(historyRegex, "").trim();
 
     // Use the model runnable to organize the new content as markdown
-    mainContent = (await modelStringRunnable.invoke(newContent)).trim();
+    const formattedNewContent = (await modelStringRunnable.invoke(newContent)).trim();
+
+    // Append new content to the end of the main content, with spacing
+    if (mainContent.length > 0) {
+      mainContent = `${mainContent}\n\n${formattedNewContent}`;
+    } else {
+      mainContent = formattedNewContent;
+    }
 
     // Prepare history
     const now = new Date().toISOString();
     let historySection = "";
-    const prevHistoryMatch = review.match(historyRegex);
-    if (prevHistoryMatch) {
-      historySection = prevHistoryMatch[0].trim();
+    if (historyMatch) {
+      historySection = historyMatch[0].trim();
     } else {
       historySection = "## History\n";
     }

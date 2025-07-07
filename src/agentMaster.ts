@@ -71,6 +71,7 @@ class MasterAgent {
         try {
           links = await linkFinderAgent(this.baseDirectory, file);
         } catch (err) {
+          console.error('Error finding links in file', file, err);
           await updateReadmeAgentRunnable.invoke({
             newContent: `## Problems Encountered\n- Error finding links in file ${file}: ${err}`,
             reason: `Link finding error in ${file}`,
@@ -78,6 +79,7 @@ class MasterAgent {
           links = [];
         }
       } catch (err) {
+        console.error('Unexpected error in file', file, err);
         await updateReadmeAgentRunnable.invoke({
           newContent: `## Problems Encountered\n- Unexpected error in file ${file}: ${err}`,
           reason: `Unexpected error in ${file}`,
