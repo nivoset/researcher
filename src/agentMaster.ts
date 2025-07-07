@@ -123,17 +123,50 @@ class MasterAgent {
   }
 
   async buildMarkdown() {
-    let md = "# Code Chain Map\n\n";
+    // --- General Overview Section ---
+    let overview = '# General Overview\n\n';
+    // Build a reverse dependency map: file -> set of files that link to it
+    const reverseDeps = new Map();
+    for (const [file, { links }] of this.contextMap.entries()) {
+      for (const link of links) {
+        if (!reverseDeps.has(link)) reverseDeps.set(link, new Set());
+        reverseDeps.get(link).add(file);
+      }
+    }
+    // List all files and their direct connections
+    overview += 'This codebase consists of the following researched files and their relationships:\n\n';
+    for (const [file, { links }] of this.contextMap.entries()) {
+      overview += `- **${file}**`;
+      if (links.length > 0) {
+        overview += ` imports/links to: ${links.join(", ")}`;
+      }
+      if (reverseDeps.has(file)) {
+        overview += ` | used by: ${Array.from(reverseDeps.get(file)).join(", ")}`;
+      }
+      overview += '\n';
+    }
+    overview += '\nThe dependency graph shows how files are interconnected, with arrows indicating import or usage relationships. Entry file: **' + this.entryFile + '**.';
+
+    // --- Code Chain Map Section ---
+    let md = overview + "\n# Code Chain Map\n\n";
     for (const [file, { links }] of this.contextMap.entries()) {
       md += `- **${file}**\n`;
       for (const link of links) {
         md += `  - links to: ${link}\n`;
       }
+      if (reverseDeps.has(file)) {
+        md += `  - used by: ${Array.from(reverseDeps.get(file)).join(", ")}\n`;
+      }
     }
     md += "\n# File Summaries\n\n";
-    for (const [file, { summary }] of this.contextMap.entries()) {
+    for (const [file, { summary, links }] of this.contextMap.entries()) {
       md += `## ${file}\n\n`;
-      md += summary + "\n\n";
+      // Verbose summary: include what this file links to, who uses it, and its research summary
+      md += `**Links to:** ${links.length > 0 ? links.join(", ") : "(none)"}\n\n`;
+      if (reverseDeps.has(file)) {
+        md += `**Used by:** ${Array.from(reverseDeps.get(file)).join(", ")}\n\n`;
+      }
+      md += `**Summary:**\n${summary}\n\n`;
     }
     return md;
   }
