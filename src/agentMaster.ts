@@ -84,7 +84,7 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 // --- Master Agent ---
-class MasterAgent {
+export class MasterAgent {
   contextMap: Map<string, { summary: string; links: string[] }> = new Map();
   baseDirectory: string;
   entryFile: string;
@@ -286,10 +286,9 @@ class MasterAgent {
 async function main() {
   const baseDirectory = "/Users/benjaminkoop/Desktop/code/python/PocketFlow-Tutorial-Codebase-Knowledge" // path.resolve("./src");
   const entryFile = "main.py";
-  const question = "what is the loop this code does to research code? explain thuroughly and in detail";
+  const question = "how can i set this up for azure using api key and auth bearer token?";
   const agent = new MasterAgent(baseDirectory, entryFile, question);
   await agent.run();
 }
 
-main(); 
-main(); 
+//main(); 
