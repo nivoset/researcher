@@ -47,8 +47,17 @@ async function generateTitle(file: string, summary: string): Promise<string> {
 async function saveFileNote(baseDirectory: string, file: string, summary: string, notesDir: string, links: string[], timestamp: string) {
   try {
     const title = await generateTitle(file, summary);
+    // Annotate imports: if not a relative path, mark as (library)
+    const annotatedLinks = links.map(l => {
+      if (l.startsWith('.') || l.startsWith('/') || l.match(/^[A-Za-z]:[\\/]/)) {
+        return l;
+      } else {
+        return `${l} (library)`;
+      }
+    });
     // Use LLM to generate explanation, use case, abstraction, used functions/abstractions, and imports
-    const prompt = `Given the following summary for the file '${file}', and the following list of files it imports or links to: ${links.join(", ")}, write:\n1. A concise explanation of what this file does (1-2 sentences).\n2. A short description of the use case for this file (how/when/why it is used).\n3. What this file abstracts or what responsibility it encapsulates in the codebase.\n4. A list of the main functions or abstractions this file uses (e.g., functions/classes it calls or depends on from other files), based on the summary and imports.\n5. A list of what this file imports (imported modules/files).\n\nDO NOT INCLUDE RAW CODE IN THE SUMMARY.\n\nSummary:\n${summary}\n\nFormat:\n# ${title}\n\n_Created in run: ${timestamp}_\n\n## Explanation\n...\n\n## Use Case\n...\n\n## Abstraction/Responsibility\n...\n\n## Functions/Abstractions Used\n...\n\n## Imports\n${links.length > 0 ? links.map(l => `- ${l}`).join('\\n') : '(none)'}\n`;
+    const prompt = `Given the following summary for the file '${file}', and the following list of files it imports or links to (libraries are marked with '(library)'):
+${annotatedLinks.join(", ")}, write:\n1. A concise explanation of what this file does (1-2 sentences).\n2. A short description of the use case for this file (how/when/why it is used).\n3. What this file abstracts or what responsibility it encapsulates in the codebase.\n4. A list of the main functions or abstractions this file uses (e.g., functions/classes it calls or depends on from other files), based on the summary and imports.\n5. A list of what this file imports (imported modules/files, libraries are marked with '(library)').\n\nDO NOT INCLUDE RAW CODE IN THE SUMMARY.\n\nSummary:\n${summary}\n\nFormat:\n# ${title}\n\n_Created in run: ${timestamp}_\n\n## Explanation\n...\n\n## Use Case\n...\n\n## Abstraction/Responsibility\n...\n\n## Functions/Abstractions Used\n...\n\n## Imports\n${annotatedLinks.length > 0 ? annotatedLinks.map(l => `- ${l}`).join('\\n') : '(none)'}\n`;
     let llmResult = '';
     try {
       const result = await model.invoke(prompt);
@@ -275,8 +284,8 @@ class MasterAgent {
 
 // --- Run the master agent ---
 async function main() {
-  const baseDirectory = path.resolve("./src");
-  const entryFile = "agentMaster.ts";
+  const baseDirectory = "/Users/benjaminkoop/Desktop/code/python/PocketFlow-Tutorial-Codebase-Knowledge" // path.resolve("./src");
+  const entryFile = "main.py";
   const question = "what is the loop this code does to research code? explain thuroughly and in detail";
   const agent = new MasterAgent(baseDirectory, entryFile, question);
   await agent.run();
